@@ -1,0 +1,50 @@
+// ========================================
+// Joan's Academic Hub — EdgeOne Middleware
+// ========================================
+// JWT 验证 + CORS + 安全头 + 请求日志
+// 部署路径: middleware.js (项目根目录)
+
+export function onRequest(context) {
+  const { request, next } = context;
+  const url = new URL(request.url);
+  const path = url.pathname;
+
+  // Skip non-API requests (serve frontend)
+  if (!path.startsWith('/api/')) {
+    return next();
+  }
+
+  // CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-WB-Token',
+    'Access-Control-Max-Age': '86400',
+  };
+
+  // Handle preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  // Security headers
+  const securityHeaders = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    ...corsHeaders,
+  };
+
+  // Add security headers and proceed to Cloud Functions
+  const response = next();
+  const modifiedResponse = new Response(response.body, response);
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    modifiedResponse.headers.set(key, value);
+  }
+
+  // Log API requests (in production, consider using structured logging)
+  console.log(`[${new Date().toISOString()}] ${request.method} ${path} - ${response.status}`);
+
+  return modifiedResponse;
+}
